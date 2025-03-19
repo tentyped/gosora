@@ -4,62 +4,62 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pelletier/go-toml/v2"
+	"github.com/BurntSushi/toml"
+	"github.com/google/uuid"
 )
 
 type Settings struct {
-	TestValue string `toml:"test_value"`
+  SelectedModule uuid.UUID `toml:"selected_module"`
 }
 
-func (s *Settings) Load() error {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return err
-	}
-	configPath := filepath.Join(configDir, "sora", "settings.toml")
+func LoadSettings() (Settings, error) {
+  configDir, err := GetConfigDir()
+  if err != nil {
+    return Settings{}, err
+  }
 
-	if _, err := os.Stat(filepath.Dir(configPath)); os.IsNotExist(err) {
-		// Create directory if it doesn't exist
-		err = os.MkdirAll(filepath.Dir(configPath), 0755)
-		if err != nil {
-			return err
-		}
-	}
+  file := filepath.Join(configDir, "settings.toml")
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		s.InitalizeDefaults()
-		return s.Save()
-	}
+  if _, err := os.Stat(configDir); os.IsNotExist(err) {
+    if err := os.MkdirAll(configDir, 0755); err != nil {
+      return Settings{}, err
+    }
+  }
 
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return err
-	}
+  if _, err := os.Stat(file); os.IsNotExist(err) {
+    def := Settings {
+      SelectedModule: uuid.Nil,
+    }
+    if err := SaveSettings(def); err != nil {
+      return Settings{}, err
+    }
+  }
 
-	return toml.Unmarshal(data, s)
+  data, err := os.ReadFile(file)
+  if err != nil {
+    return Settings{}, err
+  }
+
+  var settings Settings
+  if err := toml.Unmarshal(data, &settings); err != nil {
+    return Settings{}, err
+  }
+
+  return settings, nil
 }
 
-func (s *Settings) Save() error {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return err
-	}
-	configPath := filepath.Join(configDir, "sora", "settings.toml")
+func SaveSettings(settings Settings) error {
+  configDir, err := GetConfigDir()
+  if err != nil {
+    return err
+  }
 
-	err = os.MkdirAll(filepath.Dir(configPath), 0755)
-	if err != nil {
-		return err
-	}
+  file := filepath.Join(configDir, "settings.toml")
 
-	data, err := toml.Marshal(s)
-	if err != nil {
-		return err
-	}
+  data, err := toml.Marshal(settings)
+  if err != nil {
+    return err
+  }
 
-	return os.WriteFile(configPath, data, 0644)
-}
-
-func (s *Settings) InitalizeDefaults() error {
-	s.TestValue = "red"
-	return nil
+  return os.WriteFile(file, data, 0644)
 }
