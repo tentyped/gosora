@@ -1,23 +1,46 @@
 package sora
+
 import (
-    "fmt"
-    "sora/src/utils"
+	"os"
+	"path/filepath"
+	"sora/src/modules"
+	"sora/src/utils"
+
+	"go.uber.org/zap"
 )
 
-func TestSettings() {
-  settings := utils.Settings{}
-  err := settings.Load()
-  if err != nil {
-    fmt.Println("Error loading settings: ", err)
-    return
-  }
+func InitializationStageFunction() (*zap.Logger, *utils.Settings, string, *modules.ModuleManager, error) {
+  // Ensure Sora config directory exists
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+	configDir = filepath.Join(configDir, "sora")
+	os.MkdirAll(configDir, 0755) // Ensure directory exists
 
-  fmt.Println("test_value: ", settings.TestValue)
+	// Create logger with a file writer
+	logFile := filepath.Join(configDir, "logs.txt")
+	cfg := zap.NewProductionConfig()
+	cfg.OutputPaths = []string{logFile, "stdout"} // Log to file & stdout
+	logger, err := cfg.Build()
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
 
-  settings.TestValue = "blue"
-  err = settings.Save()
-  if err != nil {
-    fmt.Println("Error saving settings: ", err)
-    return
-  }
+	logger.Info("Logger initialized successfully")
+
+	// Load settings
+	settings := &utils.Settings{}
+	err = settings.Load()
+	if err != nil {
+		logger.Error("Failed to load settings", zap.Error(err))
+		return nil, nil, "", nil, err
+	}
+	logger.Info("Settings loaded successfully")
+
+	// Initialize ModuleManager
+	moduleManager := modules.NewModuleManager(configDir, logger)
+	logger.Info("Module manager initialized successfully")
+
+	return logger, settings, configDir, moduleManager, nil
 }
